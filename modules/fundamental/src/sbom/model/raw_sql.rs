@@ -24,7 +24,12 @@ pub const CONTEXT_CPE_FILTER_SQL: &str = r#"
         SELECT id FROM filtered_cpes
         UNION
         SELECT id FROM generalized_cpes
-    )
+    ) OR (
+        SELECT cpe_id
+        FROM sbom_describing_cpe
+        WHERE sbom_id = $1
+        LIMIT 1
+    ) IS NULL
 )
 "#;
 
@@ -109,6 +114,7 @@ pub fn batch_severity_counts_sql() -> &'static str {
           AND (
               pst.context_cpe_id IS NULL
               OR pst.context_cpe_id IN (SELECT cpe_id FROM sbom_allowed_cpes sac WHERE sac.sbom_id = sp.sbom_id)
+              OR sp.sbom_id NOT IN (SELECT sbom_id FROM sbom_has_cpes)
           )
     ),
     purl_matches AS (
@@ -135,6 +141,7 @@ pub fn batch_severity_counts_sql() -> &'static str {
           AND (
               ps.context_cpe_id IS NULL
               OR ps.context_cpe_id IN (SELECT cpe_id FROM sbom_allowed_cpes sac WHERE sac.sbom_id = sp.sbom_id)
+              OR sp.sbom_id NOT IN (SELECT sbom_id FROM sbom_has_cpes)
           )
     ),
 
@@ -154,6 +161,7 @@ pub fn batch_severity_counts_sql() -> &'static str {
           AND (
               ps.context_cpe_id IS NULL
               OR ps.context_cpe_id IN (SELECT cpe_id FROM sbom_allowed_cpes sac WHERE sac.sbom_id = sp.sbom_id)
+              OR sp.sbom_id NOT IN (SELECT sbom_id FROM sbom_has_cpes)
           )
     ),
 
@@ -378,7 +386,8 @@ pub fn product_advisory_info_sql() -> String {
             FROM product_status ps
             JOIN sbom_purls sp ON ps.package = sp.name
             WHERE (ps.context_cpe_id IS NULL
-                   OR ps.context_cpe_id IN (SELECT id FROM allowed_cpe_ids))
+                   OR ps.context_cpe_id IN (SELECT id FROM allowed_cpe_ids)
+                   OR NOT EXISTS (SELECT 1 FROM filtered_cpes LIMIT 1))
         ),
 
         -- Match 2: Namespace/name concatenation (handles scoped packages like npm, maven)
@@ -396,7 +405,8 @@ pub fn product_advisory_info_sql() -> String {
             JOIN sbom_purls sp ON ps.package = CONCAT(sp.namespace, '/', sp.name)
             WHERE sp.namespace IS NOT NULL
               AND (ps.context_cpe_id IS NULL
-                   OR ps.context_cpe_id IN (SELECT id FROM allowed_cpe_ids))
+                   OR ps.context_cpe_id IN (SELECT id FROM allowed_cpe_ids)
+                   OR NOT EXISTS (SELECT 1 FROM filtered_cpes LIMIT 1))
         ),
 
         -- Union the two match types to eliminate OR in JOIN
