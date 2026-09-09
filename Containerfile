@@ -1,6 +1,6 @@
 FROM registry.access.redhat.com/ubi9/ubi:latest AS builder
 
-RUN dnf install --setop install_weak_deps=false --nodocs -y git python gcc g++ cmake ninja-build openssl-devel xz
+RUN dnf install --setop install_weak_deps=false --nodocs -y git python gcc g++ cmake ninja-build openssl-devel xz clang-libs
 
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
